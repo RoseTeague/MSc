@@ -1,3 +1,7 @@
+#!/usr/bin/env python3
+'''Rosemary Teague, CID - 00828351
+'''
+
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.interpolate
@@ -37,7 +41,7 @@ def main(filename):
     dr=R[0]-R[1]
     if Rmin<=(R[0]+dr) or Rmin>=(R[-1]-dr):
         # returns a warning that the spline may not have interpolated correctly
-        return 'Warning:minimum at beginning/end of data, possible fault in interpolation'
+        return 'Warning: minimum at beginning/end of data, possible fault in interpolation'
     else:
         #saves plot of energy vs separation
         plt.plot(Xvals,interp(Xvals)-Emin)

@@ -1,8 +1,11 @@
+#!/usr/bin/env python3
+'''Rosemary Teague, CID - 00828351
+'''
+
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
 
-#!/usr/bin/env python3
 
 def trapezoidal_np(dx, yvals):
     '''Calculate the area under y(x) using trapezoidal integration
@@ -61,6 +64,6 @@ def main(filename, N):
     plt.savefig('Density of States')
 
 
-#Calls the main function with data input from unix terminal
+#Calls the main function with data input from terminal
 if __name__ == '__main__':
     main(sys.argv[1], sys.argv[2])
