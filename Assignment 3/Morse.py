@@ -22,15 +22,23 @@ def Morse(r,De,a,re,E):
     '''
     return De*(np.exp(-2*a*(r-re))-2*np.exp(-a*(r-re)))-E
 
+def SavePlot(x,y,x2,y2,xlabel=None,ylabel=None,plotfilename='plot.png'):
+    plt.plot(x, y, "b-")
+    if x2 is not None and y2 is not None:
+        plt.plot(x2,y2,'rx')
+    if xlabel is not None:
+        plt.xlabel(xlabel)
+    if ylabel is not None:
+        plt.ylabel(ylabel)
+    plt.savefig(plotfilename)
+
 
 def Main(filename):
     Data=np.loadtxt(str(filename))
     R=Data[:,0]
     E=Data[:,1]
     print(R[0],E[0])
-    #
-    # E=np.append(E,0)
-    # R=np.append(R,100)
+
 
     Morse_guess = [E.min(),1,R[np.argmin(E)],E[-1]]
     Mp, cov = scipy.optimize.curve_fit(Morse, R, E, Morse_guess)
@@ -42,11 +50,8 @@ def Main(filename):
 
     xplt=np.linspace(R.min(),R.max(),100)
 
-    plt.plot(R,E)
-    plt.plot(xplt, Morse(xplt,*Mp))
-    # plt.xlim(0.5,5)
-    # plt.ylim(E.min(),E.max())
-    plt.show()
+    SavePlot(xplt,Morse(xplt,*Mp),R,E,xlabel='Atomic Separation',ylabel='Potential',plotfilename='Morse Potential')
+
     return str(filename)
 
 if __name__=='__main__':
