@@ -22,6 +22,7 @@ def Init(N):
     #Random number to determine an initial displacement from equilibrium
     sigma = np.sqrt(0.01)
     s = np.random.normal(0,sigma,N)
+    #s = np.zeros(N)
 
     #Generate positions chain of argon atoms
     pos = [do*n + s[n] for n in range(N)]
@@ -29,7 +30,8 @@ def Init(N):
     #initial velocity is zero
     v0 = np.zeros(N)
 
-#    plt.plot(pos, np.zeros(N), 'ro')
+    # plt.plot(pos, np.zeros(N), 'ro')
+    # plt.show()
     return np.array(pos),v0
 
 def Accel(pos):
@@ -47,29 +49,50 @@ def Accel(pos):
         atom in the chain
     '''
 
-    A = 1.209*10**(5)
-    B = 70.66
+    A = 1.209*10**(5)#0.0011639175169510549#
+    B = 70.66#0.7468261337975162#
     N = len(pos)
 
     #print(pos)
 
     #Matrix of interactions between each atomic pair
-    Fmat = [[np.sign(n-m)*12*(A*((np.abs(pos[n]-pos[m]))**(-13))+B*0.5*((np.abs(pos[n]-pos[m]))**(-7))) for n in range(N) if n!=m]for m in range(N)]
-    Vmat = [[(A*((np.abs(pos[n]-pos[m]))**(-12))+B*((np.abs(pos[n]-pos[m]))**(-6))) for n in range(N) if n!=m]for m in range(N)]
+    rmat = np.array([[pos[n]-pos[m] for n in range(N) if n!=m] for m in range(N)])
+    Vmat = A*np.abs(rmat[:,:])**(-12)-B*np.abs(rmat[:,:])**(-6)
+    Fmat = -np.sign(rmat[:,:])*12*np.multiply(Vmat,1/np.abs(rmat))
 
-    F = [np.sum(Fmat[i]) for i in range(len(Fmat))]
-    V = [np.sum(Vmat[i]) for i in range(len(Vmat))]
-    #
-    # plt.plot(pos, np.zeros(N), 'ro')
-    # plt.plot(pos,F,'bx')
-    # plt.show()
+    V = np.array([np.sum(Vmat[i]) for i in range(N)])
+    F = np.array([np.sum(Fmat[i]) for i in range(N)])
 
-    m = 10**(-24)/(6.63*10**(-23))
+    m_to_A = 10e10
+    s_to_ps = 10e12
+    kg_to_eVc = 1/(1.6e-19)#(3e8)**2/(1.6e-19)
 
-    a = np.array(F)*m
+    m = 6.63e-26*kg_to_eVc*10**(4)
 
-    return a,np.array(V)*1.6*10
+    a = F/m
 
+    plt.figure(1)
+    plt.imshow(rmat)
+    plt.colorbar()
+    plt.show()
+
+    plt.figure(2)
+    plt.plot(pos,V)
+
+    plt.figure(3)
+    plt.plot(pos,F)
+
+    plt.figure(5)
+    plt.plot(pos,a)
+
+    #Verification that force contributions are mainly from nearest neighbours
+    plt.figure(4)
+    plt.imshow(Fmat)
+    plt.colorbar()
+    plt.show()
+
+
+    return a,2*np.sum(V)/N,rmat,Fmat
 
 def velocityverlet(N, accel, x0, v0, dt, nt):
     '''Velocity Verlet integration to find x(t) and v(t)
@@ -92,34 +115,83 @@ def velocityverlet(N, accel, x0, v0, dt, nt):
     x : float, array
         Position at each timestep.
     '''
-    print(x0,dt,nt)
+    #print(dt,nt)
     # Initialize an empty arrays that will store x at each timestep.
-    x = np.empty((N,nt))
-    v = np.empty((N,nt))
-    V = np.empty((N,nt))
+    x = np.zeros((N,nt))
+    v = np.zeros((N,nt))
+    V = np.zeros(nt)
     # Add in the initial conditions.
-    x.transpose()[0] = x0
-    v.transpose()[0] = v0
+    x[:,0] = x0
+    v[:,0] = v0
     # NB We only want to call this function once per cycle.
-    a,V.transpose()[0] = accel(x.transpose()[0])
+    a,V[0],r,F = accel(x0)
 
     # Use a for loop to iterate over timesteps, updating the velocity
     # and position each time.
     for it in range(1, nt):
 
-        v.transpose()[it] = v.transpose()[it-1] + 0.5*dt*a
-        x.transpose()[it] = x.transpose()[it-1] + v.transpose()[it]*dt
+        v[:,it] = v[:,it-1] + 0.5*dt*a
+        x[:,it] = x[:,it-1] + v[:,it]*dt
         # Sometimes you'll see this with the two preceeding steps
         # combined to one, and a full step update of v
         # at the end
-        a,V.transpose()[it] = accel(x.transpose()[it])
+        a,V[it],r,F = accel(x[:,it])
         # This is basically equivalent to the leapfrog method
         # except that we have v at that timestep at the end of
         # each step.
-        v.transpose()[it] = v.transpose()[it] + 0.5*dt*a
+        v[:,it] = v[:,it] + 0.5*dt*a
+
+        # plt.plot(x.transpose()[it], np.zeros(50), 'ro')
+        # plt.show()
     return x,v,V
 
-def Main(N,t,dt):
+def leapfrog(N,accel, x0, v0, dt, nt):
+    '''Leapfrog integration to find x(t) and v(t)
+
+    Parameters
+    ----------
+    N : integer
+        Number of atoms in chain
+    accel : function
+        Function of x that gives the acceleration.
+    x0 : float
+        Initial value of x.
+    v0 : float
+        Initial value of v.
+    dt : float
+        Timestep.
+    nt : int
+        Number of timesteps
+
+    Returns
+    -------
+    x : float, array
+        Position at each timestep.
+    '''
+    # Initialize an empty arrays that will store x at each timestep.
+    x = np.empty((N,nt))
+    # Add in the initial conditions.
+    x = np.empty((N,nt))
+    v = np.empty((N,nt))
+    V = np.empty(nt)
+    # Add in the initial conditions.
+    x[:,0] = x0
+    # Put velocity out of sync by half a step (leapfrog method
+    a,V[0],r,F = accel(x0)
+    v[:,0] = v0 + 0.5 * dt * a
+
+    # Use a for loop to iterate over timesteps, updating the velocity
+    # and position each time.
+    for it in range(1, nt):
+        x[:,it] = x[:,it-1] + dt * v[:,it-1]
+        a,V[it],r,F = accel(x[:,it])
+        v[:,it] = v[:,it-1] + dt * a
+
+    # plt.plot(x[:,it], np.zeros(N), 'ro')
+    # plt.show()
+    return x,v,V
+
+def main(N,t,dt):
     '''
     Calulates the evolution of positions and velocities of a linear chain of argon
     atoms using the Lennard-Jones potential
@@ -130,28 +202,32 @@ def Main(N,t,dt):
     t - duration of simulation (ps)
     dt - timestep used in integration of equation of motion (ps)
     '''
-    m = (6.63*10**(-23))
+
     nt = int(t/dt)
     tvals = np.linspace(0, t, nt)
     pos,v0 = Init(N)
     xvals,vvals,Vvals = velocityverlet(N,Accel,pos,v0,dt,nt)
 
+    for i in range(len(xvals)):
+        plt.plot(tvals, xvals[i]-xvals[i][0])
+    plt.savefig('Displacement from initial position',dpi=700)
 
-    # for i in range(len(xvals)):
-    #     plt.plot(tvals, xvals[i]-xvals[i][0])
-    # plt.show()
+    Tvals = [0.5*m*np.sum((vvals[:,i])**2) for i in range(len(vvals[0]))]
+    print('V = ', len(Vvals),' ',Vvals[3], 'T = ', len(Tvals),' ',Tvals[3], 't = ', len(tvals))
+    print('V = ', Vvals-Vvals[0])
+    print('T = ', Tvals)
 
-    for i in range(len(Vvals)-1):
-        Tvals = 0.5*vvals[i]**2
-        print(Tvals[4])
-        plt.plot(tvals, Vvals[i],'r-.')
-        plt.plot(tvals, Tvals,'c-')
-        plt.plot(tvals, Tvals+Vvals[i], 'b--')
-    plt.ylim(-1,5)
+    plt.close()
+    plt.plot(tvals, Vvals-Vvals[0],'r-.')
+    plt.savefig('Potential Energy')
+    plt.plot(tvals, Tvals,'c-')
+    plt.savefig('Kinetic Energy')
+    plt.close()
+    plt.plot(tvals, Tvals+Vvals, 'b--')
     plt.show()
 
-
-
-
 if __name__=='__main__':
-    Main(20,20,0.05)
+    pos, v0 = Init(100)
+    #a,V,r,F = Accel(pos)
+    x,v,V = velocityverlet(100, Accel, pos, v0, 0.05, 50)
+    x2,v2,V2 = leapfrog(100, Accel, pos, v0, 0.05, 50)
