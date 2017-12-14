@@ -2,27 +2,34 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-import scipy.fftpack
 import seaborn as sns
 
 def Init(N):
     '''
-    Initialised the positions of a chain of N argon atoms in a straight line
+    ============================================================================
+    Initialises the atomic positions of a chain of N argon atoms in 1D with a
+    variance of 0.01 Angstrom - note if the variance is changed to 0.001
+    Angstrom a much more periodic motion is observed as the atoms are initially
+    more evenly spaced.
+    ============================================================================
 
     Parameters
     -----------
-    N - int, Number of argon atoms in the chain
+    N : int,
+        Number of argon atoms in the chain
 
     Returns
     --------
-    pos - array, initial positions of argon atoms in chain
-    v0 - array, initial velocity of each atom
+    pos : array,
+        Initial positions of argon atoms in chain
+    v0 : array,
+        Initial velocity of each atom
     '''
 
     #Equilibrium separation
     do = 3.9 #Angstrom
-    #Random number to determine an initial displacement from equilibrium
-    sigma = np.sqrt(0.001)
+    #Generates random number to determine an initial displacement from equilibrium with std dev sigma
+    sigma = np.sqrt(0.01)
     s = np.random.normal(0,sigma,N)
     #s = np.zeros(N)
 
@@ -38,27 +45,29 @@ def Init(N):
 
 def Accel(pos):
     '''
+    ============================================================================
     determines the force on each argon atom in the chain as a result of Lennard-
     Jones potentials
+    ============================================================================
 
     Parameters
     -----------
-    pos - array, initial positions of the argon atoms
+    pos : array
+        Initial positions of the argon atoms
 
     Returns
     -------
-    a - array, acceleration of each atom
-    V - Total potential energy (eV) for this arrangement
-    F - array, the force on each atom as a result of interactions with every other
-        atom in the chain
+    a : array
+        Acceleration of each atom (Angstrom per ps^2)
+    V : Float
+        Total potential energy (eV) for this arrangement
 
     '''
 
-    A = 1.209*10**(5)#0.0011639175169510549#
-    B = 70.66#0.7468261337975162#
+    #Initialise Parameters
+    A = 1.209*10**(5)
+    B = 70.66
     N = len(pos)
-
-    #print(pos)
 
     #Matrix of interactions between each atomic pair
     rmat = np.array([[pos[n]-pos[m] for n in range(N) if n!=m] for m in range(N)])
@@ -110,19 +119,33 @@ def Accel(pos):
 
 def adjacent_pairs(x):
     '''
+    ============================================================================
+    Determines the separation between all sets of adjacent atoms in a chain
+    ============================================================================
+
     Parameters
     ----------
-    x - array
+    x : array
         positions of all atoms in chain
+
+    Returns
+    --------
+    r : array
+        separation of each set of adjacent pairs
     '''
+    #Number of atoms in the chain
     N = len(x)
+    #Calculate separation for only adjacent pairs
     r = [x[n+1]-x[n] for n in range(N-1)]
 
     return r
 
 
 def velocityverlet(N, accel, x0, v0, dt, nt):
-    '''Velocity Verlet integration to find x(t) and v(t)
+    '''
+    ============================================================================
+    Velocity Verlet integration to find x(t) and v(t)
+    ============================================================================
 
     Parameters
     ----------
@@ -163,23 +186,48 @@ def velocityverlet(N, accel, x0, v0, dt, nt):
 
         v[:,it] = v[:,it-1] + 0.5*dt*a
         x[:,it] = x[:,it-1] + v[:,it]*dt
-        # Sometimes you'll see this with the two preceeding steps
-        # combined to one, and a full step update of v
-        # at the end
+
         a,V[it] = accel(x[:,it])
-        # This is basically equivalent to the leapfrog method
-        # except that we have v at that timestep at the end of
-        # each step.
+
         v[:,it] = v[:,it] + 0.5*dt*a
 
-        # plt.plot(x.transpose()[it], np.zeros(50), 'ro')
-        # plt.show()
     return x,v,V
 
-#sns.palplot(sns.color_palette("GnBu_d"))
+
 def multiplot(N,x,y,l,cmap,plotname, xlabel, ylabel, relative_init=True, lim = None, legend = None):
     '''
-    Plots multiple fucntions against the same y axis and saves figure as a png image
+    ============================================================================
+    Plots multiple fucntions against the same y axis and saves figure as a png
+    image
+    ============================================================================
+
+    Parameters
+    -----------
+    N : int
+        Number of functions to be plotted
+    x : array
+        x data to be plotted
+    y : nested arrays
+        contains each set of y data to be plotted
+    l : float
+        linewidth of plot
+    cmap : string
+        colour map of plots
+    plotname : string
+        Name of final figure
+    xlabel : string
+    ylabel : string
+    relative_init : boolean
+        If set to true, a relative set of data will be plotted against the Initial
+        value (y[i] - y[i][0] will be plotted)
+    lim : Float
+        upper x limit for plot data
+    legend : array of strings
+        contains the labels for each plot if legend is desired
+
+    Returns
+    --------
+    saved png image of plot as 'plotname.png'
     '''
 
     if legend is None:
@@ -210,6 +258,29 @@ def multiplot(N,x,y,l,cmap,plotname, xlabel, ylabel, relative_init=True, lim = N
         plt.savefig('Plot')
 
 def Energy_plots(nt,Vvals,vvals,tvals):
+    '''
+    ============================================================================
+    Detemines the Kinetic energy and generates a plot of Potential, Kinetic and
+    Total Energies
+    ============================================================================
+
+    Parameters
+    -----------
+    nt : int
+        number of data points
+    Vvals : array
+        potential energy data
+    vvals : array
+        velocity data
+    tvals : array
+        time data
+
+    Returns
+    --------
+    Tvals : array
+        Kinetic Energy data
+
+    '''
 
     #Unit conversions
     e = 1.6e-19
@@ -227,17 +298,44 @@ def Energy_plots(nt,Vvals,vvals,tvals):
 
     Energies = [Vvals,Tvals,Vvals+Tvals]
 
+    #plot data
     multiplot(3,tvals,Energies,0.2,'Set1','Energies', xlabel = 'Time (ps)', ylabel = 'Energy (eV)',legend = ['Potential Energy','Kinetic Energy', 'Total Energy'])
 
     return Tvals
 
 def Fourier(N,dt,nt,xvals):
+    '''
+    ============================================================================
+    Calculates the fourier transform of the change in the separation between
+    adjacent atoms relative to its average value
+    ============================================================================
+
+    Parameters
+    ----------
+    N : int
+        Number of atoms in chain
+    dt : float
+        timestep intervals (ps) of data points
+    nt : int
+        total number of timesteps (ps)
+    xvals : matrix array
+        data of x positions of each atom at each timestep
+
+    Returns
+    --------
+    ftr_avg : array
+        list of real fourier transformed values
+    ftr_avg : array
+        list of imaginary fourier transformed values
+    '''
+    #Determine samples as values of the change in the separation between
+    #adjacent atoms relative to its average value
     samples = np.zeros(nt)
     nn_separations = np.array([adjacent_pairs(xvals[:,i]) for i in range(nt)])
     nn_average = np.array([np.sum(nn_separations[:,i])/nt for i in range(N-1)])/nt
     samples = [nn_separations[:,i] - nn_average[i] for i in range(N-1)]
 
-    #fft
+    #calculates the fourier transform of each pair
     ftr = np.zeros((N,int(nt/2+1)))
     fti = np.zeros((N,int(nt/2+1)))
     for i in range(N-1):
@@ -245,17 +343,22 @@ def Fourier(N,dt,nt,xvals):
         ftr[i] = np.array(np.real(ft_samples))
         fti[i] = np.array(np.imag(ft_samples))
 
+    #Average over all pairs
     ftr_avg = np.array([np.sum(ftr[:,i]) for i in range(len(ftr[0]))])/len(ftr[0])
     ftr_avg = ftr_avg.tolist()
     fti_avg = np.array([np.sum(fti[:,i]) for i in range(len(fti[0]))])/len(fti[0])
     fti_avg = fti_avg.tolist()
+
+    #Determine set of frequencies corresponding to fourier transformed data
     freqs = np.fft.rfftfreq(len(samples[0]), dt)
     freqs = freqs.tolist()
 
+    #remove the initial data point of each set
     ftr_avg.remove(ftr_avg[0])
     fti_avg.remove(fti_avg[0])
     freqs.remove(freqs[0])
 
+    #plot data
     multiplot(2,freqs,[ftr_avg,fti_avg] ,0.5,'husl','Fourier Transform',relative_init=False,lim = 2, xlabel = 'Frequency (THz)', ylabel = None, legend=('Real','Imaginary'))
 
     return ftr_avg, fti_avg
@@ -279,10 +382,13 @@ def main(N,t,dt):
     pos,v0 = Init(N)
     xvals,vvals,Vvals = velocityverlet(N,Accel,pos,v0,dt,nt)
 
+    #plot displacement from initial position of each atom
     multiplot(len(xvals),tvals,xvals,0.5,'GnBu_d','Displacement from initial position',xlabel = 'Time (ps)', ylabel = 'Displacement (Angstrom)')
 
+    # calculate kinetic energy and plot all energies
     Tvals = Energy_plots(nt,Vvals,vvals,tvals)
 
+    #perform a fourier transform and plot result
     ftr_avg, fti_avg = Fourier(N,dt,nt,xvals)
 
 
