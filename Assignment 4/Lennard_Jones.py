@@ -116,7 +116,7 @@ def adjacent_pairs(x):
         positions of all atoms in chain
     '''
     N = len(x)
-    r = [pos[n]-pos[n+1] for n in range(N-1)]
+    r = [x[n+1]-x[n] for n in range(N-1)]
 
     return r
 
@@ -177,13 +177,88 @@ def velocityverlet(N, accel, x0, v0, dt, nt):
     return x,v,V
 
 #sns.palplot(sns.color_palette("GnBu_d"))
-def multiplot(N,x,y,l,cmap,plotname=None):
+def multiplot(N,x,y,l,cmap,plotname, xlabel, ylabel, relative_init=True, lim = None, legend = None):
+    '''
+    Plots multiple fucntions against the same y axis and saves figure as a png image
+    '''
+
+    if legend is None:
+        legend = [None for i in range(N)]
+
     plt.figure(N)
     sns.set_palette(cmap)
-    for i in range(N):
-        plt.plot(x,y[i]-y[i][0], linewidth = l)
-    plt.savefig(plotname)
+    if relative_init:
+        for i in range(N):
+            plt.plot(x,y[i]-y[i][0], linewidth = l,label = legend[i])
 
+    else:
+        for i in range(N):
+            plt.plot(x,y[i], linewidth = l,label = legend[i])
+
+
+    if xlabel is not None:
+        plt.xlabel(xlabel)
+    if ylabel is not None:
+        plt.ylabel(ylabel)
+    if lim is not None:
+        plt.xlim(0,lim)
+    if legend[0] is not None:
+        plt.legend()
+    if plotname is not None:
+        plt.savefig(plotname)
+    else:
+        plt.savefig('Plot')
+
+def Energy_plots(nt,Vvals,vvals,tvals):
+
+    #Unit conversions
+    e = 1.6e-19
+    A_to_m = 1e-10
+    ps_to_s = 1e-12
+
+    #Alternative units - to SI and back
+    Fev_to_FSI = e/A_to_m #converting a force in eV per Angstrom to kg m s^-2
+    aSI_to_aAps = ps_to_s**2/A_to_m # converting an acceleration from ms^-2 to Angstrom per ps^-2
+
+    m = 6.63e-26/(Fev_to_FSI*aSI_to_aAps) # mass in eV ps^2 per Angstrom^2
+
+    #Calculate kinetic energy at each timestep as sum of individual atomic kinetic energies
+    Tvals = np.array([0.5*m*np.sum(np.multiply(vvals[:,i],vvals[:,i])) for i in range(nt)])
+
+    Energies = [Vvals,Tvals,Vvals+Tvals]
+
+    multiplot(3,tvals,Energies,0.2,'Set1','Energies', xlabel = 'Time (ps)', ylabel = 'Energy (eV)',legend = ['Potential Energy','Kinetic Energy', 'Total Energy'])
+
+    return Tvals
+
+def Fourier(N,dt,nt,xvals):
+    samples = np.zeros(nt)
+    nn_separations = np.array([adjacent_pairs(xvals[:,i]) for i in range(nt)])
+    nn_average = np.array([np.sum(nn_separations[:,i])/nt for i in range(N-1)])/nt
+    samples = [nn_separations[:,i] - nn_average[i] for i in range(N-1)]
+
+    #fft
+    ftr = np.zeros((N,int(nt/2+1)))
+    fti = np.zeros((N,int(nt/2+1)))
+    for i in range(N-1):
+        ft_samples = np.fft.rfft(samples[i])
+        ftr[i] = np.array(np.real(ft_samples))
+        fti[i] = np.array(np.imag(ft_samples))
+
+    ftr_avg = np.array([np.sum(ftr[:,i]) for i in range(len(ftr[0]))])/len(ftr[0])
+    ftr_avg = ftr_avg.tolist()
+    fti_avg = np.array([np.sum(fti[:,i]) for i in range(len(fti[0]))])/len(fti[0])
+    fti_avg = fti_avg.tolist()
+    freqs = np.fft.rfftfreq(len(samples[0]), dt)
+    freqs = freqs.tolist()
+
+    ftr_avg.remove(ftr_avg[0])
+    fti_avg.remove(fti_avg[0])
+    freqs.remove(freqs[0])
+
+    multiplot(2,freqs,[ftr_avg,fti_avg] ,0.5,'husl','Fourier Transform',relative_init=False,lim = 2, xlabel = 'Frequency (THz)', ylabel = None, legend=('Real','Imaginary'))
+
+    return ftr_avg, fti_avg
 
 def main(N,t,dt):
     '''
@@ -198,54 +273,20 @@ def main(N,t,dt):
 
     '''
 
-    #Unit conversions
-    e = 1.6e-19
-    A_to_m = 1e-10
-    ps_to_s = 1e-12
-
-    #Alternative units - to SI and back
-    Fev_to_FSI = e/A_to_m #converting a force in eV per Angstrom to kg m s^-2
-    aSI_to_aAps = ps_to_s**2/A_to_m # converting an acceleration from ms^-2 to Angstrom per ps^-2
-
-    m = 6.63e-26/(Fev_to_FSI*aSI_to_aAps) # mass in eV ps^2 per Angstrom^2
-
     #Initialise time-step and duration, determine initial values and call differential equation solver
     nt = int(t/dt)
     tvals = np.linspace(0, t, nt)
     pos,v0 = Init(N)
     xvals,vvals,Vvals = velocityverlet(N,Accel,pos,v0,dt,nt)
 
-    samples = np.zeros(nt)
+    multiplot(len(xvals),tvals,xvals,0.5,'GnBu_d','Displacement from initial position',xlabel = 'Time (ps)', ylabel = 'Displacement (Angstrom)')
 
-    #plot displacement from initial position for each atom
-    # for i in range(len(xvals)):
-    #     plt.plot(tvals, xvals[i]-xvals[i][0], linewidth = 0.5)
-    # plt.savefig('Displacement from initial position',dpi=700)
-    multiplot(len(xvals),tvals,xvals,0.5,'GnBu_d','Displacement from initial position')
+    Tvals = Energy_plots(nt,Vvals,vvals,tvals)
 
-    #Calculate kinetic energy at each timestep as sum of individual atomic kinetic energies
-    Tvals = np.array([0.5*m*np.sum(np.multiply(vvals[:,i],vvals[:,i])) for i in range(nt)])
-    print('V = ', len(Vvals),' ',Vvals-Vvals[0], 'T = ', len(Tvals),' ',Tvals, 't = ', len(tvals))
-
-    #Generate plots of potential, kinetic and total energies
-    # plt.figure(6)
-    # plt.plot(tvals, Vvals-Vvals[0],'r-.',linewidth = 0.2) #Sometimes this is a positive curve and sometimes it is negative.....
-    # #plt.savefig('Potential Energy')
-    # #plt.figure(7)
-    # plt.plot(tvals, Tvals,'c-',linewidth = 0.2) #Tiimes by 10^-2 gives same order of magnitude as V but I don't know why..
-    # #plt.savefig('Kinetic Energy')
-    # #plt.figure(8)
-    # plt.plot(tvals, Tvals+Vvals-Vvals[0], 'b--',linewidth = 0.2)
-    # plt.savefig('Total Energy')
-
-    Energies = [Vvals,Tvals,Vvals+Tvals]
-
-    multiplot(3,tvals,Energies,0.2,'Set1','Energies')
+    ftr_avg, fti_avg = Fourier(N,dt,nt,xvals)
 
 
-    return Tvals+Vvals-Vvals[0]
 
 if __name__=='__main__':
-    #pos, v0 = Init(100)
-    #a,V,r,F = Accel(pos)
-    main(2,50,0.05)
+
+    main(100,100,0.05)
